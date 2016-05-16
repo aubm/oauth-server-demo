@@ -6,6 +6,8 @@ import (
 	"io/ioutil"
 	"net/http"
 	"regexp"
+
+	"github.com/gorilla/context"
 )
 
 const SERVER_ERR = "server_error"
@@ -46,4 +48,13 @@ var validEmail = regexp.MustCompile(`^[a-z0-9._%+\-]+@[a-z0-9.\-]+\.[a-z]{2,4}$`
 
 func validateEmailFormat(email string) bool {
 	return validEmail.MatchString(email)
+}
+
+type ClearContextAdapter struct{}
+
+func (a *ClearContextAdapter) Adapt(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		defer context.Clear(r)
+		next.ServeHTTP(w, r)
+	})
 }

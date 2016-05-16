@@ -92,6 +92,19 @@ func (m *AccessDataManager) find(code string) (*osin.AccessData, error) {
 		date, _ := time.Parse(time.RFC3339, v)
 		access.CreatedAt = date
 	}
+	if uData, ok := data["UserData"].(map[string]interface{}); ok {
+		u := &User{}
+		if v, ok := uData["Id"].(string); ok {
+			u.Id = v
+		}
+		if v, ok := uData["Email"].(string); ok {
+			u.Email = v
+		}
+		if v, ok := uData["Password"].(string); ok {
+			u.Password = v
+		}
+		access.UserData = u
+	}
 
 	return access, nil
 }

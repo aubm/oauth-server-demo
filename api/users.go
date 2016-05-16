@@ -4,6 +4,7 @@ import (
 	"net/http"
 
 	"github.com/aubm/oauth-server-demo/security"
+	"github.com/gorilla/context"
 )
 
 type UsersHandlers struct {
@@ -35,4 +36,9 @@ func (h *UsersHandlers) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.WriteHeader(201)
+}
+
+func (h *UsersHandlers) Me(w http.ResponseWriter, r *http.Request) {
+	user := context.Get(r, "user").(*security.User)
+	writeJSON(w, map[string]string{"id": user.Id, "email": user.Email}, 200)
 }

@@ -53,18 +53,21 @@ func main() {
 	securityHandlers := &api.SecurityHandlers{}
 	usersHandlers := &api.UsersHandlers{}
 	usersManager := &security.UsersManager{}
+	identityAdapter := &api.IdentityAdapter{}
+	clearContextAdapter := &api.ClearContextAdapter{}
 
 	if err := inject.Populate(&appConfig, db, oauthServerStorage, server, securityHandlers,
 		clientsManager, redisClient, accessDataManager, usersHandlers,
-		usersManager); err != nil {
+		usersManager, identityAdapter, clearContextAdapter); err != nil {
 		log.Fatal(err)
 	}
 
 	router := mux.NewRouter()
 	router.HandleFunc("/auth/v1/token", securityHandlers.Token).Methods("POST")
 	router.HandleFunc("/api/v1/users", usersHandlers.Create).Methods("POST")
+	router.Handle("/api/v1/me", api.Adapt(http.HandlerFunc(usersHandlers.Me), identityAdapter)).Methods("GET")
 
-	http.Handle("/", router)
+	http.Handle("/", api.Adapt(router, clearContextAdapter))
 
 	fmt.Printf("Server started on port %v\n", appConfig.Port)
 	log.Fatal(http.ListenAndServe(fmt.Sprintf(":%v", appConfig.Port), nil))
