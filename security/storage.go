@@ -2,14 +2,18 @@ package security
 
 import (
 	"database/sql"
-	"errors"
+	"fmt"
 	"time"
 
 	"github.com/RangelReale/osin"
 )
 
 type Storage struct {
-	DB *sql.DB `inject:""`
+	DB                *sql.DB            `inject:""`
+	AccessDataManager *AccessDataManager `inject:""`
+	ClientsManager    interface {
+		FindOne(id string) (*Client, error)
+	} `inject:""`
 }
 
 func (s *Storage) Clone() osin.Storage {
@@ -20,22 +24,7 @@ func (s *Storage) Close() {
 }
 
 func (s *Storage) GetClient(id string) (osin.Client, error) {
-	rows, err := s.DB.Query(`SELECT id, secret, redirect_uri
-	FROM clients
-	WHERE id = ?
-	LIMIT 1`, id)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	if !rows.Next() {
-		return nil, errors.New("Client not found")
-	}
-	client := &Client{}
-	if err := rows.Scan(&client.Id, &client.Secret, &client.RedirectUri); err != nil {
-		return nil, err
-	}
-	return client, nil
+	return s.ClientsManager.FindOne(id)
 }
 
 func (s *Storage) SaveAuthorize(data *osin.AuthorizeData) error {
@@ -54,102 +43,23 @@ func (s *Storage) RemoveAuthorize(code string) error {
 }
 
 func (s *Storage) SaveAccess(data *osin.AccessData) error {
-	stmt, err := s.DB.Prepare(`INSERT INTO access
-	(access_token, refresh_token, expires_in, scope, redirect_uri, created_at, client_id)
-	VALUES (?, ?, ?, ?, ?, ?, ?)`)
-	if err != nil {
-		return err
-	}
-	defer stmt.Close()
-	_, err = stmt.Exec(
-		data.AccessToken,
-		data.RefreshToken,
-		data.ExpiresIn,
-		data.Scope,
-		data.RedirectUri,
-		data.CreatedAt.Format("2006-01-02 15:04:05"),
-		data.Client.GetId(),
-	)
-	if err != nil {
-		return err
-	}
-	return nil
+	accessDuration, _ := time.ParseDuration(fmt.Sprintf("%vs", data.ExpiresIn))
+	refreshDuration, _ := time.ParseDuration("168h") // 1 week
+	return s.AccessDataManager.Save(data, accessDuration, refreshDuration)
 }
 
 func (s *Storage) LoadAccess(code string) (*osin.AccessData, error) {
-	rows, err := s.DB.Query(`SELECT c.id, c.secret, c.redirect_uri as client_redirect_uri,
-	a.access_token, a.refresh_token, a.expires_in, a.scope, a.redirect_uri, a.created_at
-	FROM access a
-	INNER JOIN clients c ON (c.id = a.client_id)
-	WHERE a.access_token = ?`, code)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	if !rows.Next() {
-		return nil, errors.New("Access not found")
-	}
-	d := &osin.AccessData{}
-	c := &Client{}
-	var createdAt string
-	if err := rows.Scan(
-		&c.Id, &c.Secret, &c.RedirectUri,
-		&d.AccessToken, &d.RefreshToken, &d.ExpiresIn, &d.Scope, &d.RedirectUri, &createdAt,
-	); err != nil {
-		return nil, err
-	}
-	d.CreatedAt, _ = time.Parse("2006-01-02 15:04:05", createdAt)
-	d.Client = c
-	return d, nil
+	return s.AccessDataManager.FindAccess(code)
 }
 
 func (s *Storage) RemoveAccess(code string) error {
-	stmt, err := s.DB.Prepare("DELETE FROM access WHERE access_token = ?")
-	if err != nil {
-		return err
-	}
-	defer stmt.Close()
-	if _, err := stmt.Exec(code); err != nil {
-		return err
-	}
-	return nil
+	return s.AccessDataManager.DeleteAccess(code)
 }
 
 func (s *Storage) LoadRefresh(code string) (*osin.AccessData, error) {
-	rows, err := s.DB.Query(`SELECT c.id, c.secret, c.redirect_uri as client_redirect_uri,
-	a.access_token, a.refresh_token, a.expires_in, a.scope, a.redirect_uri, a.created_at
-	FROM access a
-	INNER JOIN clients c ON (c.id = a.client_id)
-	WHERE a.refresh_token = ?`, code)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	if !rows.Next() {
-		return nil, errors.New("Access not found")
-	}
-	d := &osin.AccessData{}
-	c := &Client{}
-	var createdAt string
-	if err := rows.Scan(
-		&c.Id, &c.Secret, &c.RedirectUri,
-		&d.AccessToken, &d.RefreshToken, &d.ExpiresIn, &d.Scope, &d.RedirectUri, &createdAt,
-	); err != nil {
-		return nil, err
-	}
-	d.CreatedAt, _ = time.Parse("2006-01-02 15:04:05", createdAt)
-	d.Client = c
-	return d, nil
+	return s.AccessDataManager.FindRefresh(code)
 }
 
 func (s *Storage) RemoveRefresh(code string) error {
-	stmt, err := s.DB.Prepare("DELETE FROM access WHERE refresh_token = ?")
-	if err != nil {
-		return err
-	}
-	defer stmt.Close()
-	if _, err := stmt.Exec(code); err != nil {
-		return err
-	}
-	return nil
+	return s.AccessDataManager.DeleteRefresh(code)
 }

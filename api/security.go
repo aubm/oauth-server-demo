@@ -8,19 +8,15 @@ import (
 	"github.com/RangelReale/osin"
 )
 
-type authServer interface {
-	NewResponse() *osin.Response
-	HandleAccessRequest(w *osin.Response, r *http.Request) *osin.AccessRequest
-	FinishAccessRequest(w *osin.Response, r *http.Request, ar *osin.AccessRequest)
-}
-
-type accessLoader interface {
-	LoadAccess(code string) (*osin.AccessData, error)
-}
-
 type SecurityHandlers struct {
-	AuthServer   authServer   `inject:""`
-	AccessLoader accessLoader `inject:""`
+	AuthServer interface {
+		NewResponse() *osin.Response
+		HandleAccessRequest(w *osin.Response, r *http.Request) *osin.AccessRequest
+		FinishAccessRequest(w *osin.Response, r *http.Request, ar *osin.AccessRequest)
+	} `inject:""`
+	AccessDataManager interface {
+		FindAccess(code string) (*osin.AccessData, error)
+	} `inject:""`
 }
 
 func (h *SecurityHandlers) Token(w http.ResponseWriter, r *http.Request) {
@@ -47,7 +43,7 @@ func (h *SecurityHandlers) Me(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Invalid access token", 403)
 		return
 	}
-	access, err := h.AccessLoader.LoadAccess(token)
+	access, err := h.AccessDataManager.FindAccess(token)
 	if err != nil {
 		http.Error(w, err.Error(), 403)
 		return

@@ -12,6 +12,7 @@ import (
 	"github.com/aubm/oauth-server-demo/security"
 	"github.com/facebookgo/inject"
 	_ "github.com/go-sql-driver/mysql"
+	"gopkg.in/redis.v3"
 )
 
 var port string
@@ -27,11 +28,22 @@ func main() {
 		log.Fatal(err)
 	}
 	defer db.Close()
+
+	redisClient := redis.NewClient(&redis.Options{Addr: "localhost:6379", Password: "", DB: 0})
+	_, err = redisClient.Ping().Result()
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer redisClient.Close()
+
 	oauthServerStorage := &security.Storage{}
 	server := osin.NewServer(createServerConfig(), oauthServerStorage)
 	securityHandlers := &api.SecurityHandlers{}
+	clientsManager := &security.ClientsManager{}
+	accessDataManager := &security.AccessDataManager{}
 
-	if err := inject.Populate(db, oauthServerStorage, server, securityHandlers); err != nil {
+	if err := inject.Populate(db, oauthServerStorage, server, securityHandlers,
+		clientsManager, redisClient, accessDataManager); err != nil {
 		log.Fatal(err)
 	}
 
