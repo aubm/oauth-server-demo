@@ -5,6 +5,7 @@ import (
 	"io"
 	"io/ioutil"
 	"net/http"
+	"regexp"
 )
 
 const SERVER_ERR = "server_error"
@@ -39,4 +40,10 @@ func httpError(w http.ResponseWriter, code int, msg, description string) {
 		Error            string `json:"error"`
 		ErrorDescription string `json:"error_description"`
 	}{msg, description}, code)
+}
+
+var validEmail = regexp.MustCompile(`^[a-z0-9._%+\-]+@[a-z0-9.\-]+\.[a-z]{2,4}$`)
+
+func validateEmailFormat(email string) bool {
+	return validEmail.MatchString(email)
 }

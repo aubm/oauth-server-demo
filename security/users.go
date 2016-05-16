@@ -34,6 +34,17 @@ func (m *UsersManager) Save(u User) error {
 }
 
 func (m *UsersManager) FindByCredentials(email, clearPassword string) (*User, error) {
+	u, err := m.FindByEmail(email)
+	if err != nil {
+		return u, err
+	}
+	if err := m.compareHashAndPassword(u.Password, clearPassword); err != nil {
+		return nil, err
+	}
+	return u, nil
+}
+
+func (m *UsersManager) FindByEmail(email string) (*User, error) {
 	rows, err := m.DB.Query(`SELECT id, email, password
 	FROM users
 	WHERE email = ?
@@ -41,6 +52,7 @@ func (m *UsersManager) FindByCredentials(email, clearPassword string) (*User, er
 	if err != nil {
 		return nil, err
 	}
+
 	defer rows.Close()
 
 	if !rows.Next() {
@@ -49,10 +61,6 @@ func (m *UsersManager) FindByCredentials(email, clearPassword string) (*User, er
 
 	u := new(User)
 	if err := rows.Scan(&u.Id, &u.Email, &u.Password); err != nil {
-		return nil, err
-	}
-
-	if err := m.compareHashAndPassword(u.Password, clearPassword); err != nil {
 		return nil, err
 	}
 

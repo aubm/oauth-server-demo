@@ -9,6 +9,7 @@ import (
 type UsersHandlers struct {
 	Manager interface {
 		Save(user security.User) error
+		FindByEmail(email string) (*security.User, error)
 	} `inject:""`
 }
 
@@ -19,6 +20,14 @@ func (h *UsersHandlers) Create(w http.ResponseWriter, r *http.Request) {
 	}
 	if u.Email == "" || u.Password == "" {
 		httpError(w, 400, "form_error", "A user must have an email and a password")
+		return
+	}
+	if !validateEmailFormat(u.Email) {
+		httpError(w, 400, "email_format_error", "Invalid email format")
+		return
+	}
+	if _, err := h.Manager.FindByEmail(u.Email); err == nil {
+		httpError(w, 400, "email_unicity_error", "This email is already used")
 		return
 	}
 	if err := h.Manager.Save(u); err != nil {
