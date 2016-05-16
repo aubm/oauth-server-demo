@@ -13,6 +13,7 @@ import (
 	"github.com/aubm/oauth-server-demo/security"
 	"github.com/facebookgo/inject"
 	_ "github.com/go-sql-driver/mysql"
+	"github.com/gorilla/mux"
 	"gopkg.in/redis.v3"
 )
 
@@ -27,6 +28,7 @@ func init() {
 	flag.StringVar(&appConfig.Redis.Password, "redis-password", "", "the password for the redis instance")
 	flag.Int64Var(&appConfig.Redis.DB, "redis-db", 0, "the Redis database to use")
 	flag.IntVar(&appConfig.Security.AccessExpiration, "access-expiration", 3600, "the access token expiration time")
+	flag.StringVar(&appConfig.Security.Secret, "secret", "this-is-not-really-a-secret", "the application secret")
 	flag.Parse()
 }
 
@@ -46,17 +48,23 @@ func main() {
 
 	oauthServerStorage := &security.Storage{}
 	server := osin.NewServer(createServerConfig(), oauthServerStorage)
-	securityHandlers := &api.SecurityHandlers{}
 	clientsManager := &security.ClientsManager{}
 	accessDataManager := &security.AccessDataManager{}
+	securityHandlers := &api.SecurityHandlers{}
+	usersHandlers := &api.UsersHandlers{}
+	usersManager := &security.UsersManager{}
 
-	if err := inject.Populate(db, oauthServerStorage, server, securityHandlers,
-		clientsManager, redisClient, accessDataManager); err != nil {
+	if err := inject.Populate(&appConfig, db, oauthServerStorage, server, securityHandlers,
+		clientsManager, redisClient, accessDataManager, usersHandlers,
+		usersManager); err != nil {
 		log.Fatal(err)
 	}
 
-	http.HandleFunc("/auth/v1/token", securityHandlers.Token)
-	http.HandleFunc("/api/v1/me", securityHandlers.Me)
+	router := mux.NewRouter()
+	router.HandleFunc("/auth/v1/token", securityHandlers.Token).Methods("POST")
+	router.HandleFunc("/api/v1/users", usersHandlers.Create).Methods("POST")
+
+	http.Handle("/", router)
 
 	fmt.Printf("Server started on port %v\n", appConfig.Port)
 	log.Fatal(http.ListenAndServe(fmt.Sprintf(":%v", appConfig.Port), nil))

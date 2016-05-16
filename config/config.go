@@ -14,5 +14,6 @@ type App struct {
 	}
 	Security struct {
 		AccessExpiration int
+		Secret           string
 	}
 }
