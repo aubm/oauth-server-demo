@@ -5,11 +5,12 @@ import (
 	"errors"
 
 	"github.com/aubm/oauth-server-demo/config"
+	"github.com/satori/go.uuid"
 	"golang.org/x/crypto/bcrypt"
 )
 
 type User struct {
-	Id       int
+	Id       string
 	Email    string
 	Password string
 }
@@ -20,16 +21,17 @@ type UsersManager struct {
 }
 
 func (m *UsersManager) Save(u User) error {
-	if u.Id == 0 {
+	if u.Id == "" {
 		var err error
 		u.Password, err = m.encrypt(u.Password)
 		if err != nil {
 			return err
 		}
+		u.Id = uuid.NewV4().String()
 	}
 	stmt, _ := m.DB.Prepare(`INSERT INTO users
-	(email, password) VALUES (?, ?)`)
-	_, err := stmt.Exec(u.Email, u.Password)
+	(id, email, password) VALUES (?, ?, ?)`)
+	_, err := stmt.Exec(u.Id, u.Email, u.Password)
 	return err
 }
 
