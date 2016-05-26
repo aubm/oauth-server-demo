@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"time"
 
 	"github.com/RangelReale/osin"
 	"github.com/aubm/oauth-server-demo/api"
@@ -21,6 +22,7 @@ var appConfig config.App
 
 func init() {
 	flag.StringVar(&appConfig.Port, "port", "8080", "the tcp port for the application")
+	flag.StringVar(&appConfig.DB.Addr, "db-addr", "localhost:3306", "the MySQL address")
 	flag.StringVar(&appConfig.DB.User, "db-user", "root", "the mMySQL user")
 	flag.StringVar(&appConfig.DB.Password, "db-password", "root", "the mMySQL password")
 	flag.StringVar(&appConfig.DB.Name, "db-name", "oauthserverdemo", "the name of the MySQL database")
@@ -30,10 +32,22 @@ func init() {
 	flag.IntVar(&appConfig.Security.AccessExpiration, "access-expiration", 3600, "the access token expiration time")
 	flag.StringVar(&appConfig.Security.Secret, "secret", "this-is-not-really-a-secret", "the application secret")
 	flag.Parse()
+
+	fmt.Println("Parsed application parameters")
+	fmt.Printf("TCP port:          %v\n", appConfig.Port)
+	fmt.Printf("MySQL address:     %v\n", appConfig.DB.Addr)
+	fmt.Printf("MySQL user:        %v\n", appConfig.DB.User)
+	fmt.Printf("MySQL password:    %v\n", appConfig.DB.Password)
+	fmt.Printf("MySQL database:    %v\n", appConfig.DB.Name)
+	fmt.Printf("Redis address:     %v\n", appConfig.Redis.Addr)
+	fmt.Printf("Redis password:    %v\n", appConfig.Redis.Password)
+	fmt.Printf("Redis db:          %v\n", appConfig.Redis.DB)
+	fmt.Printf("Access expiration: %v\n", appConfig.Security.AccessExpiration)
+	fmt.Printf("Secret:            %v\n", appConfig.Security.Secret)
 }
 
 func main() {
-	db, err := sql.Open("mysql", fmt.Sprintf("%v:%v@/%v", appConfig.DB.User, appConfig.DB.Password, appConfig.DB.Name))
+	db, err := initDB()
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -79,4 +93,25 @@ func createServerConfig() *osin.ServerConfig {
 	serverConfig.AllowedAccessTypes = osin.AllowedAccessType{osin.PASSWORD, osin.REFRESH_TOKEN}
 	serverConfig.AccessExpiration = int32(appConfig.Security.AccessExpiration)
 	return serverConfig
+}
+
+func initDB() (*sql.DB, error) {
+	db, err := sql.Open("mysql", fmt.Sprintf("%v:%v@tcp(%v)/%v", appConfig.DB.User, appConfig.DB.Password, appConfig.DB.Addr, appConfig.DB.Name))
+	if err != nil {
+		return db, err
+	}
+	for !pingDB(db) {
+		log.Printf("database is not ready, will retry in 5 seconds")
+		time.Sleep(time.Second * 5)
+	}
+	return db, err
+}
+
+func pingDB(db *sql.DB) bool {
+	rows, err := db.Query("SELECT 1 FROM clients")
+	if err == nil {
+		defer rows.Close()
+		return true
+	}
+	return false
 }

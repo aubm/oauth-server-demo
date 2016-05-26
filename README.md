@@ -80,6 +80,21 @@ It uses the access token we just got.
 
 ## Installation
 
+### With docker and docker-compose
+
+Just run `docker-compose up`
+
+PHPMyAdmin is accessible on port `8888`.
+Here is what you need to provide to log in:
+
+- Server: `db`
+- User: `oauthsvr`
+- Password: `oauthsvr`
+
+The app is served on port `8080`.
+
+### Without docker
+
 What you need:
 
 - Golang
@@ -105,8 +120,10 @@ go run main.go
 Here are the options you can provide:
 
 ```
-  -access-expiration int
+-access-expiration int
     	the access token expiration time (default 3600)
+  -db-addr string
+    	the MySQL address (default "localhost:3306")
   -db-name string
     	the name of the MySQL database (default "oauthserverdemo")
   -db-password string

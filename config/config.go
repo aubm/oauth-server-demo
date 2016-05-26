@@ -3,6 +3,7 @@ package config
 type App struct {
 	Port string
 	DB   struct {
+		Addr     string
 		User     string
 		Password string
 		Name     string
