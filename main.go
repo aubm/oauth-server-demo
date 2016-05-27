@@ -92,6 +92,7 @@ func createServerConfig() *osin.ServerConfig {
 	serverConfig.AllowedAuthorizeTypes = osin.AllowedAuthorizeType{}
 	serverConfig.AllowedAccessTypes = osin.AllowedAccessType{osin.PASSWORD, osin.REFRESH_TOKEN}
 	serverConfig.AccessExpiration = int32(appConfig.Security.AccessExpiration)
+	serverConfig.ErrorStatusCode = 400
 	return serverConfig
 }
 

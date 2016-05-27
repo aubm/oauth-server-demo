@@ -35,6 +35,9 @@ func (h *SecurityHandlers) Token(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 		h.AuthServer.FinishAccessRequest(resp, r, ar)
+		if !ar.Authorized {
+			resp.SetError("invalid_grant", "Invalid grant")
+		}
 	}
 	osin.OutputJSON(resp, w, r)
 }
@@ -57,7 +60,7 @@ func (ia *IdentityAdapter) Adapt(next http.Handler) http.Handler {
 			}
 		}
 		if u == nil {
-			httpError(w, 403, "invalid_token", "Invalid access token")
+			httpError(w, 401, "invalid_token", "Invalid access token")
 			return
 		}
 		context.Set(r, "user", u)
