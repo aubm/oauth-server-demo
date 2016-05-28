@@ -6,6 +6,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"regexp"
+	"time"
 
 	"github.com/gorilla/context"
 )
@@ -56,5 +57,20 @@ func (a *ClearContextAdapter) Adapt(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		defer context.Clear(r)
 		next.ServeHTTP(w, r)
+	})
+}
+
+type LogAdapter struct {
+	Logger interface {
+		Printf(format string, v ...interface{})
+	} `inject:"logger_info"`
+}
+
+func (a *LogAdapter) Adapt(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		start := time.Now()
+		a.Logger.Printf("http request started   %s %s", r.Method, r.URL)
+		next.ServeHTTP(w, r)
+		a.Logger.Printf("http request completed %s %s in %v", r.Method, r.URL, time.Since(start))
 	})
 }

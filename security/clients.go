@@ -1,9 +1,12 @@
 package security
 
-import (
-	"database/sql"
-	"errors"
-)
+import "database/sql"
+
+type NoClientFoundErr struct{}
+
+func (_ NoClientFoundErr) Error() string {
+	return "No client found"
+}
 
 type Client struct {
 	Id          string
@@ -29,7 +32,10 @@ func (d *Client) GetUserData() interface{} {
 }
 
 type ClientsManager struct {
-	DB *sql.DB `inject:""`
+	DB          *sql.DB `inject:""`
+	LoggerError interface {
+		Printf(format string, v ...interface{})
+	} `inject:"logger_error"`
 }
 
 func (m *ClientsManager) FindOne(id string) (*Client, error) {
@@ -38,14 +44,16 @@ func (m *ClientsManager) FindOne(id string) (*Client, error) {
 	WHERE id = ?
 	LIMIT 1`, id)
 	if err != nil {
+		m.LoggerError.Printf("failed to load client from DB: %v", err)
 		return nil, err
 	}
 	defer rows.Close()
 	if !rows.Next() {
-		return nil, errors.New("Client not found")
+		return nil, NoClientFoundErr{}
 	}
 	client := &Client{}
 	if err := rows.Scan(&client.Id, &client.Secret, &client.RedirectUri); err != nil {
+		m.LoggerError.Printf("failed to scan client: %v", err)
 		return nil, err
 	}
 	return client, nil

@@ -18,6 +18,9 @@ type SecurityHandlers struct {
 	UsersFinder interface {
 		FindByCredentials(email, clearPassword string) (*security.User, error)
 	} `inject:""`
+	LoggerError interface {
+		Printf(format string, v ...interface{})
+	} `inject:"logger_error"`
 }
 
 func (h *SecurityHandlers) Token(w http.ResponseWriter, r *http.Request) {
@@ -32,6 +35,11 @@ func (h *SecurityHandlers) Token(w http.ResponseWriter, r *http.Request) {
 			if u, err := h.UsersFinder.FindByCredentials(ar.Username, ar.Password); err == nil {
 				ar.UserData = u
 				ar.Authorized = true
+			} else {
+				if _, ok := err.(security.NoUserFoundErr); !ok {
+					httpError(w, 500, SERVER_ERR, SERVER_ERR_DESC)
+					return
+				}
 			}
 		}
 		h.AuthServer.FinishAccessRequest(resp, r, ar)

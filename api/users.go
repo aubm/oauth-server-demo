@@ -30,7 +30,13 @@ func (h *UsersHandlers) Create(w http.ResponseWriter, r *http.Request) {
 	if _, err := h.Manager.FindByEmail(u.Email); err == nil {
 		httpError(w, 400, "email_unicity_error", "This email is already used")
 		return
+	} else {
+		if _, ok := err.(security.NoUserFoundErr); !ok {
+			httpError(w, 500, SERVER_ERR, SERVER_ERR_DESC)
+			return
+		}
 	}
+
 	if err := h.Manager.Save(u); err != nil {
 		httpError(w, 500, SERVER_ERR, SERVER_ERR_DESC)
 		return

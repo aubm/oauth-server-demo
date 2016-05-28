@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/RangelReale/osin"
@@ -13,6 +14,7 @@ import (
 	"github.com/aubm/oauth-server-demo/config"
 	"github.com/aubm/oauth-server-demo/security"
 	"github.com/facebookgo/inject"
+	"github.com/fatih/color"
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/gorilla/mux"
 	"gopkg.in/redis.v3"
@@ -69,10 +71,14 @@ func main() {
 	usersManager := &security.UsersManager{}
 	identityAdapter := &api.IdentityAdapter{}
 	clearContextAdapter := &api.ClearContextAdapter{}
+	logAdapter := &api.LogAdapter{}
+	loggerInfo := log.New(os.Stdout, "info : ", log.Ldate|log.Ltime)
+	loggerError := &RedPrinter{Logger: log.New(os.Stdout, "error: ", log.Ldate|log.Ltime|log.Lshortfile)}
 
-	if err := inject.Populate(&appConfig, db, oauthServerStorage, server, securityHandlers,
-		clientsManager, redisClient, accessDataManager, usersHandlers,
-		usersManager, identityAdapter, clearContextAdapter); err != nil {
+	if err := populate(db, redisClient, oauthServerStorage, server, clientsManager, accessDataManager,
+		securityHandlers, usersHandlers, usersManager, identityAdapter, clearContextAdapter, logAdapter,
+		&inject.Object{Value: loggerInfo, Name: "logger_info"},
+		&inject.Object{Value: loggerError, Name: "logger_error"}); err != nil {
 		log.Fatal(err)
 	}
 
@@ -81,10 +87,23 @@ func main() {
 	router.HandleFunc("/api/v1/users", usersHandlers.Create).Methods("POST")
 	router.Handle("/api/v1/me", api.Adapt(http.HandlerFunc(usersHandlers.Me), identityAdapter)).Methods("GET")
 
-	http.Handle("/", api.Adapt(router, clearContextAdapter))
+	http.Handle("/", api.Adapt(router, clearContextAdapter, logAdapter))
 
-	fmt.Printf("Server started on port %v\n", appConfig.Port)
+	brand()
+	fmt.Printf("Application started on port %v\n", appConfig.Port)
 	log.Fatal(http.ListenAndServe(fmt.Sprintf(":%v", appConfig.Port), nil))
+}
+
+func populate(values ...interface{}) error {
+	graph := inject.Graph{}
+	for _, v := range values {
+		if obj, ok := v.(*inject.Object); ok {
+			graph.Provide(obj)
+		} else {
+			graph.Provide(&inject.Object{Value: v})
+		}
+	}
+	return graph.Populate()
 }
 
 func createServerConfig() *osin.ServerConfig {
@@ -115,4 +134,29 @@ func pingDB(db *sql.DB) bool {
 		return true
 	}
 	return false
+}
+
+func brand() {
+	fmt.Print(`
+.oPYo.      .oo          o  8        .oPYo.                                    ooo.
+8    8     .P 8          8  8        8                                         8  '8.
+8    8    .P  8 o    o  o8P 8oPYo.   'Yooo. .oPYo. oPYo. o    o .oPYo. oPYo.   8   '8 .oPYo. ooYoYo. .oPYo.
+8    8   oPooo8 8    8   8  8    8       '8 8oooo8 8  '' Y.  .P 8oooo8 8  ''   8    8 8oooo8 8' 8  8 8    8
+8    8  .P    8 8    8   8  8    8        8 8.     8     'b..d' 8.     8       8   .P 8.     8  8  8 8    8
+'YooP' .P     8 'YooP'   8  8    8   'YooP' 'Yooo' 8      'YP'  'Yooo' 8       8ooo'  'Yooo' 8  8  8 'YooP'
+:.....:..:::::..:.....:::..:..:::..:::.....::.....:..::::::...:::.....:..::::::.....:::.....:..:..:..:.....:
+::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+
+`)
+}
+
+type RedPrinter struct {
+	Logger *log.Logger
+}
+
+func (p *RedPrinter) Printf(format string, v ...interface{}) {
+	color.Set(color.FgRed)
+	p.Logger.Printf(format, v...)
+	color.Unset()
 }

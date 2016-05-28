@@ -2,12 +2,17 @@ package security
 
 import (
 	"database/sql"
-	"errors"
 
 	"github.com/aubm/oauth-server-demo/config"
 	"github.com/satori/go.uuid"
 	"golang.org/x/crypto/bcrypt"
 )
+
+type NoUserFoundErr struct{}
+
+func (_ NoUserFoundErr) Error() string {
+	return "No user found"
+}
 
 type User struct {
 	Id       string
@@ -16,8 +21,11 @@ type User struct {
 }
 
 type UsersManager struct {
-	DB     *sql.DB     `inject:""`
-	Config *config.App `inject:""`
+	DB          *sql.DB     `inject:""`
+	Config      *config.App `inject:""`
+	LoggerError interface {
+		Printf(format string, v ...interface{})
+	} `inject:"logger_error"`
 }
 
 func (m *UsersManager) Save(u User) error {
@@ -32,6 +40,9 @@ func (m *UsersManager) Save(u User) error {
 	stmt, _ := m.DB.Prepare(`INSERT INTO users
 	(id, email, password) VALUES (?, ?, ?)`)
 	_, err := stmt.Exec(u.Id, u.Email, u.Password)
+	if err != nil {
+		m.LoggerError.Printf("failed to insert user into DB: %v", err)
+	}
 	return err
 }
 
@@ -41,7 +52,7 @@ func (m *UsersManager) FindByCredentials(email, clearPassword string) (*User, er
 		return u, err
 	}
 	if err := m.compareHashAndPassword(u.Password, clearPassword); err != nil {
-		return nil, err
+		return nil, NoUserFoundErr{}
 	}
 	return u, nil
 }
@@ -52,17 +63,19 @@ func (m *UsersManager) FindByEmail(email string) (*User, error) {
 	WHERE email = ?
 	LIMIT 1`, email)
 	if err != nil {
+		m.LoggerError.Printf("failed to load user from DB: %v", err)
 		return nil, err
 	}
 
 	defer rows.Close()
 
 	if !rows.Next() {
-		return nil, errors.New("No user found")
+		return nil, NoUserFoundErr{}
 	}
 
 	u := new(User)
 	if err := rows.Scan(&u.Id, &u.Email, &u.Password); err != nil {
+		m.LoggerError.Printf("failed to scan user: %v", err)
 		return nil, err
 	}
 
@@ -72,6 +85,7 @@ func (m *UsersManager) FindByEmail(email string) (*User, error) {
 func (m *UsersManager) encrypt(password string) (string, error) {
 	b, err := bcrypt.GenerateFromPassword([]byte(m.Config.Security.Secret+password), bcrypt.DefaultCost)
 	if err != nil {
+		m.LoggerError.Printf("failed to encrypt password %v: %v", password, err)
 		return "", err
 	}
 	return string(b[:]), nil
